@@ -1,0 +1,425 @@
+    <!DOCTYPE html>
+<html>
+<head>
+    <title>The phone book</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/semantic.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.25/browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/16.0.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/16.0.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui-react/0.75.1/semantic-ui-react.min.js"></script>
+    <script src="https://unpkg.com/react-input-mask/dist/react-input-mask.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.4/lodash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Faker/3.1.0/faker.min.js"></script>
+    <style>
+        .align-center{
+            text-align: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" style="margin: 20px 20px;"></div>
+    <!-- ################################################################### -->
+    <!--            The project is implemented based ReactJS                 -->
+    <!--                   and JavaScript ECMAScript6                        -->
+    <!-- ################################################################### -->
+    <script type="text/babel">
+        const {Container, Header, Item, Button, Input, Select, Icon, Modal, Form, Message, Menu, Grid} = semanticUIReact;
+        const InputMask = ReactInputMask;
+        class PhoneBook {
+            constructor() {
+                this.CONTACT_AMOUNT = 20;
+                this._contacts = [];
+                _.times(this.CONTACT_AMOUNT, (index) => {
+                    this._contacts.push({
+                        id:    index,
+                        name:  faker.name.findName(),
+                        phone: faker.phone.phoneNumberFormat(),
+                        email: faker.internet.email() 
+                    });
+                });
+                this._contacts=_.orderBy(this._contacts, ['name'],['asc']);
+            }
+
+            count(query = "") {
+                let items = query.length>0?this.search(query):this._contacts;
+                return items.length;
+            }
+
+            add(contactInfo) {
+                this._contacts = [ contactInfo, ...this._contacts ];
+            }
+
+            remove (contactId) {
+                _.remove(this._contacts, (item)=> { return item.id == contactId });
+            }
+
+            search(query) {
+                return _.filter(this._contacts, (item) => {
+                    let filter = _.lowerCase(query);
+                    let name = _.lowerCase(item.name);
+                    return name.includes(filter) || item.phone.includes(filter);
+                });
+            }
+
+            list(query = "", startIndex = null, endIndex = null) {
+                let items = query.length>0?this.search(query):this._contacts;
+                items = startIndex || endIndex?items.slice(startIndex, endIndex):items;
+                console.log("query=" + query+ " | startIndex="+startIndex + " | endIndex=" +endIndex);
+                console.log(items);
+                return items;
+            }
+        }
+        
+        const phoneBook = new PhoneBook();
+
+        class ToolBar extends React.Component {
+            constructor(props) {
+                super(props);
+                this.handleFilterTextInputChange = this.handleFilterTextInputChange.bind(this);
+                this.handleAddContact = this.handleAddContact.bind(this);
+            }
+            handleFilterTextInputChange(e) { this.props.onFilterTextInput(e.target.value); }
+            handleAddContact() { this.props.onAddContact(); }
+            render() {
+                return (
+                    <Input type='text' placeholder='Name or Phone...' action fluid onChange={this.handleFilterTextInputChange}>
+                        <input />
+                        <AddContact onAddContact={this.handleAddContact}/>
+                    </Input>
+                );
+            }
+        }
+
+        class AddContact extends React.Component {
+
+            constructor(props) {
+                super(props);
+                this.initState();    
+                this.handleOpen = this.handleOpen.bind(this);
+                this.handleClose = this.handleClose.bind(this);
+                this.handleAddContact = this.handleAddContact.bind(this);
+            }
+            initState() {
+                this.state =  {
+                    modalOpen: false, message: "Please fill the contact form",
+                    id:    -1, name:  "", phone: "", email: "",
+                    nameValid: false, phoneValid: false, emailValid: false, formValid: true
+                };
+            }
+            handleOpen() { 
+                this.initState();
+                this.setState({ modalOpen: true }); 
+            } 
+            handleClose() { this.setState({ modalOpen: false }); } 
+            handleUserInput(event) {
+                const name = event.target.name;
+                const value = event.target.value;
+                this.setState({[name]: value}, () => { this.validate(name, value) });
+            }
+            handleAddContact() {
+                let formValid = this.validate('name') && this.validate('email') && this.validate('phone');
+                if (!formValid) {
+                    this.setState({formValid: formValid});
+                } else {
+                    phoneBook.add({
+                        id:    phoneBook.count(),
+                        name:  this.state.name,
+                        phone: this.state.phone,
+                        email: this.state.email 
+                    })
+                    this.props.onAddContact();
+                    this.handleClose();
+                }
+            }
+            validate(fieldName, value = null) {
+                let isValid =  this.state[fieldName + "Valid"];
+                let message = "";
+                value = value == null?this.state[fieldName]:value;
+                switch(fieldName) {
+                case 'email':
+                    isValid = /^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i.test(value);
+                    message = "Email is invalid";
+                    break;
+                case 'name':
+                    isValid = value.length >= 2 && value.length < 100;
+                    message = "User Name should be more 2 and less 100 chars";
+                    break;
+                case 'phone':
+                    isValid = value.length >= 10;
+                    message = "Phone number is invalid";
+                    break;
+                default:
+                    break;
+                }
+                const data = { message: message, formValid: true };
+                data[fieldName + "Valid"] = isValid;
+                this.setState(data);
+                return isValid;
+            }
+
+            render() {
+                return (
+                    <Modal 
+                        trigger={<Button color="green" onClick={this.handleOpen}>Add Contact</Button>} 
+                        open={this.state.modalOpen}
+                        onClose={this.handleClose}
+                        size='small'>
+                        <Header icon='archive' content='Add New Contact' />
+                        <Modal.Content>
+                            <Form error = {!this.state.formValid}>
+                                <Message error content={this.state.message} />
+                                <Form.Input name="name" label='User Name' placeholder='Taurean Beer' onChange={(event) => this.handleUserInput(event)}/>
+                                <Form.Input name="email" label='Email' placeholder='example@mail.com' onChange={(event) => this.handleUserInput(event)} />
+                                <Form.Input 
+                                    name="phone" label='Phone' 
+                                    children={
+                                        <InputMask name="phone"  mask="999-999-9999" maskChar=""
+                                         placeholder = "XXX-XXX-XXXX"
+                                         onChange={(event) => this.handleUserInput(event)}/> }
+                                    />
+                            </Form>
+                        </Modal.Content>
+                        <Modal.Actions>
+                            <Button basic color='red' onClick={this.handleClose} >
+                                <Icon name='remove' /> Cancel
+                            </Button>
+                            <Button color='green' onClick={this.handleAddContact}>
+                                <Icon name='checkmark' /> Add
+                            </Button>
+                        </Modal.Actions>
+                    </Modal>
+                );
+            }
+        };
+
+        class ContactItem extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { modalOpen: false };
+                this.handleDeleteContact = this.handleDeleteContact.bind(this);
+                this.handleOpen = this.handleOpen.bind(this);
+                this.handleClose = this.handleClose.bind(this);
+            }
+            handleOpen() { this.setState({ modalOpen: true })}
+            handleClose() { this.setState({ modalOpen: false })}
+
+            handleDeleteContact(e) {
+                this.props.onDeleteContact(this.props.id);
+                this.handleClose();
+            }
+
+            render() {
+                return (
+                    <Item>
+                        <Item.Image size='small' src={'https://robohash.org/' + this.props.email} />
+                        <Item.Content verticalAlign='middle'>
+                            <Item.Header>{ this.props.name }</Item.Header>
+                            <Item.Description>
+                                <p>
+                                    <b>Email :</b> { this.props.email } <div />
+                                    <b>Phone :</b>{ this.props.phone }
+                                </p>
+                            </Item.Description>
+                            <Item.Extra>
+                            <Modal 
+                                trigger={<Button floated='right'  color='red'  onClick={this.handleOpen}>Delete</Button>} 
+                                open={this.state.modalOpen}
+                                onClose={this.handleClose}
+                                basic 
+                                size='small'>
+                                <Header icon='archive' content='Delete!' />
+                                <Modal.Content>
+                                <p>Are you sure you want to delete <b>{this.props.name }</b> contact ?</p>
+                                </Modal.Content>
+                                <Modal.Actions>
+                                    <Button basic color='red' inverted onClick={this.handleClose}>
+                                        <Icon name='remove' /> Cancel
+                                    </Button>
+                                    <Button color='green' inverted onClick={this.handleDeleteContact}>
+                                        <Icon name='checkmark' /> Yes
+                                    </Button>
+                                </Modal.Actions>
+                            </Modal>
+                            </Item.Extra>
+                        </Item.Content>
+                    </Item>
+                );
+            }
+        }
+
+        class ContactList extends React.Component {
+            constructor(props) {
+                super(props);
+                this.handleDeleteContact = this.handleDeleteContact.bind(this);
+            }
+            handleDeleteContact(contactId) {
+                this.props.onDeleteContact(contactId);
+            }
+            render() {
+                return (
+                    <Item.Group >
+                        {this.props.items.map(contact => (
+                            <ContactItem onDeleteContact={this.handleDeleteContact} {...contact}/>
+                        ))}
+                    </Item.Group>
+                );
+            }
+        }
+
+        class Pagination extends React.Component {
+                constructor(props) {
+                    super(props);
+                    this.state = { pager: {} };
+                }
+
+                componentWillMount() {
+                    if (this.props.countItems) {
+                        this.setPage(this.props.initialPage);
+                    }
+                }
+
+                componentDidUpdate(prevProps, prevState) {
+                    if (this.props.countItems !== prevProps.countItems) {
+                        this.setPage(this.props.initialPage);
+                    }
+                }
+
+                setPage(page) {
+                    var countItems = this.props.countItems;
+                    var pager = this.state.pager;
+                    var pageSize = parseInt(this.props.pageSize);
+
+                    if (page < 1 || page > pager.totalPages) {
+                        return;
+                    }
+                    pager = this.getPager(countItems, page, pageSize);
+                    this.setState({ pager: pager });
+                    this.props.onChangePage(pager.startIndex, pager.endIndex + 1);
+                }
+
+                getPager(totalItems, currentPage, pageSize) {
+                    currentPage = currentPage || 1;
+                    pageSize = pageSize || 10;
+                    var totalPages = Math.ceil(totalItems / pageSize);
+                    var startPage, endPage;
+                    if (totalPages <= 10) {
+                        startPage = 1;
+                        endPage = totalPages;
+                    } else {
+                        if (currentPage <= 6) {
+                            startPage = 1;
+                            endPage = 10;
+                        } else if (currentPage + 4 >= totalPages) {
+                            startPage = totalPages - 9;
+                            endPage = totalPages;
+                        } else {
+                            startPage = currentPage - 5;
+                            endPage = currentPage + 4;
+                        }
+                    }
+                    var startIndex = (currentPage - 1) * pageSize;
+                    var endIndex = Math.min(startIndex + pageSize - 1, totalItems - 1);
+                    var pages = _.range(startPage, endPage + 1);
+                    return {
+                        totalItems: totalItems,
+                        currentPage: currentPage,
+                        pageSize: pageSize,
+                        totalPages: totalPages,
+                        startPage: startPage,
+                        endPage: endPage,
+                        startIndex: startIndex,
+                        endIndex: endIndex,
+                        pages: pages
+                    };
+                }
+
+                render() {
+                    var pager = this.state.pager;
+                    if (!pager.pages || pager.pages.length <= 1) {
+                        return null;
+                    }
+                    return (
+                        <div className="align-center">
+                            <Menu pagination>
+                                <Menu.Item name="First" disabled = {pager.currentPage === 1} onClick={() => this.setPage(1)}/>
+                                <Menu.Item name="Previous" disabled={pager.currentPage === 1} onClick={() => this.setPage(pager.currentPage - 1)}/>
+                                {pager.pages.map((page, index) =>
+                                    <Menu.Item name={page} key={index} active={pager.currentPage === page} onClick={() => this.setPage(page)}/>
+                                )}
+                                <Menu.Item name="Next" disabled={pager.currentPage === pager.totalPages} onClick={() => this.setPage(pager.currentPage + 1)}/>
+                                <Menu.Item name="Last" disabled={pager.currentPage === pager.totalPages} onClick={() => this.setPage(pager.totalPages)} />
+                            </Menu>
+                       </div>
+                    );
+                }
+        }
+
+        class App extends React.Component {
+
+            constructor(props) {
+                super(props);
+                this.state = {
+                    filterText: '', 
+                    startIndex: null,
+                    endIndex: null,
+                    count: 1
+                };
+                this.handleFilterTextInput = this.handleFilterTextInput.bind(this);
+                this.handleAddContact = this.handleAddContact.bind(this);
+                this.handleChangePage = this.handleChangePage.bind(this);
+                this.handleDeleteContact = this.handleDeleteContact.bind(this);
+            }
+            
+            handleAddContact() { 
+                this.setState({count: this.state.count + 1});
+             }
+             handleDeleteContact(contactId) {
+                console.log("deleted="+contactId);
+                phoneBook.remove(contactId);
+                this.setState({count: this.state.count + 1});
+            }
+            
+            handleFilterTextInput(filterText) {
+                this.setState({
+                    filterText: filterText
+                });
+            }
+            handleChangePage(startIndex, endIndex) {
+                this.setState({ startIndex:  startIndex, endIndex: endIndex});
+            }
+            render() {
+                return(
+                    <Container text>
+                        <Header as='h2' icon textAlign='center'>
+                            <Icon name='users' circular />
+                            <Header.Content>
+                                Phone Book
+                                <Header.Subheader>
+                                    The test task was implemented by <a href="https://www.upwork.com/fl/maksymkalin"><strong>Max Kalin </strong> from UpWork</a> 
+                                </Header.Subheader>
+                            </Header.Content>
+                           
+                        </Header>
+                        <ToolBar 
+                            filterText={this.state.filterText}
+                            onAddContact={this.handleAddContact}
+                            onFilterTextInput={this.handleFilterTextInput}/>
+                        <Pagination 
+                            pageSize="5" 
+                            countItems={ phoneBook.count(this.state.filterText) } 
+                            onChangePage={this.handleChangePage} />
+                        <ContactList 
+                            items={phoneBook.list(this.state.filterText, this.state.startIndex, this.state.endIndex)}
+                            filterText={this.state.filterText}
+                            onDeleteContact={this.handleDeleteContact}/>
+
+                    </Container>
+                );
+            }
+        }
+
+        ReactDOM.render(<App/>, document.getElementById('app'));
+    </script>
+</body>
+</html>
